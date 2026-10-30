@@ -69,11 +69,8 @@ public class QuestGoal
 
         currentAmount = clamped;
 
-        // Automatically flag as completed when target is hit
-        if (IsReached())
-        {
-            isCompleted = true;
-        }
+        // Dynamically update completion status so it clears if progress drops below required amount
+        isCompleted = IsReached();
 
         return true;
     }

@@ -15,5 +15,13 @@ public enum GameScene
 
     SantaHouse,
 
-    DirectorHouse
+    DirectorHouse,
+
+    DesertVillage,
+
+    DesertChapel,
+
+    SwampVillage,
+
+    SwampChurch
 }

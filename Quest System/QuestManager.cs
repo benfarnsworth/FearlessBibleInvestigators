@@ -97,39 +97,39 @@ public class QuestManager : MonoBehaviour
         }
     }
 
-private void InitializeRuntimeQuests()
-{
-    foreach (var q in runtimeQuestMap.Values)
+    private void InitializeRuntimeQuests()
     {
-        if (q != null) Destroy(q);
-    }
-
-    runtimeQuestMap.Clear();
-    activeQuests.Clear();
-    completedQuests.Clear();
-
-    foreach (Quest original in allGameQuests)
-    {
-        if (original == null) continue;
-
-        Quest runtimeClone = Instantiate(original);
-        runtimeClone.state = QuestState.Unassigned;
-
-        runtimeClone.goals = new List<QuestGoal>();
-        if (original.goals != null)
+        foreach (var q in runtimeQuestMap.Values)
         {
-            foreach (var g in original.goals)
-            {
-                if (g != null)
-                {
-                    runtimeClone.goals.Add(g.Clone());
-                }
-            }
+            if (q != null) Destroy(q);
         }
 
-        runtimeQuestMap[runtimeClone.questName] = runtimeClone;
+        runtimeQuestMap.Clear();
+        activeQuests.Clear();
+        completedQuests.Clear();
+
+        foreach (Quest original in allGameQuests)
+        {
+            if (original == null) continue;
+
+            Quest runtimeClone = Instantiate(original);
+            runtimeClone.state = QuestState.Unassigned;
+
+            runtimeClone.goals = new List<QuestGoal>();
+            if (original.goals != null)
+            {
+                foreach (var g in original.goals)
+                {
+                    if (g != null)
+                    {
+                        runtimeClone.goals.Add(g.Clone());
+                    }
+                }
+            }
+
+            runtimeQuestMap[runtimeClone.questName] = runtimeClone;
+        }
     }
-}
 
     public Sprite GetQuestIcon(QuestIconState state)
     {
@@ -247,7 +247,8 @@ private void InitializeRuntimeQuests()
 
     public void CompleteQuest(Quest quest)
     {
-        if (quest == null) return;
+        // Guard against multi-completion and redundant reward grants
+        if (quest == null || quest.state == QuestState.Completed) return;
 
         quest.Complete();
         if (activeQuests.Contains(quest)) activeQuests.Remove(quest);
@@ -288,10 +289,6 @@ private void InitializeRuntimeQuests()
                 if (item != null) Inventory.Instance.AddItem(item);
             }
         }
-
-        // Connect your player XP/Currency managers here if applicable:
-        // PlayerStats.Instance?.AddExp(quest.expReward);
-        // PlayerWallet.Instance?.AddGold(quest.goldReward);
     }
 
     public void FailQuest(Quest quest) => CancelOrFailQuest(quest, isFailure: true);
@@ -336,7 +333,7 @@ private void InitializeRuntimeQuests()
 
         foreach (QuestGoal goal in quest.goals)
         {
-            if (goal != null) goal.currentAmount = 0;
+            if (goal != null) goal.SetProgress(0);
         }
     }
 
@@ -361,7 +358,7 @@ private void InitializeRuntimeQuests()
 
                 if (goal.currentAmount != newAmount)
                 {
-                    goal.currentAmount = newAmount;
+                    goal.SetProgress(newAmount);
                     didUpdate = true;
                 }
             }
@@ -386,7 +383,8 @@ private void InitializeRuntimeQuests()
                 if (goal != null && goal.goalType == GoalType.Gathering && goal.targetItem != null)
                 {
                     int currentInBag = Inventory.Instance.GetItemCount(goal.targetItem);
-                    goal.currentAmount = Mathf.Min(currentInBag, goal.requiredAmount);
+                    int newAmount = Mathf.Min(currentInBag, goal.requiredAmount);
+                    goal.SetProgress(newAmount);
                 }
             }
             CheckQuestCompletion(quest);
@@ -441,15 +439,9 @@ private void InitializeRuntimeQuests()
             if (goal.goalType == GoalType.Gathering && goal.targetItem != null && Inventory.Instance != null)
             {
                 int existingCount = Inventory.Instance.GetItemCount(goal.targetItem);
-                goal.currentAmount = Mathf.Min(existingCount, goal.requiredAmount);
+                int newAmount = Mathf.Min(existingCount, goal.requiredAmount);
+                goal.SetProgress(newAmount);
             }
-            /*else if (goal.goalType == GoalType.TalkToNPC)
-            {
-                bool alreadyMet = (goal.targetNPC != null && (StoryStateManager.HasMetNPC(goal.targetNPC) || StoryStateManager.CheckConditions($"met_{goal.targetNPC.npcName}"))) ||
-                                  (!string.IsNullOrEmpty(goal.targetNPCName) && StoryStateManager.CheckConditions($"met_{goal.targetNPCName}"));
-
-                goal.currentAmount = alreadyMet ? goal.requiredAmount : 0;
-            }*/
         }
     }
 
@@ -549,7 +541,8 @@ private void InitializeRuntimeQuests()
                 {
                     if (q.goals[i] != null)
                     {
-                        q.goals[i].currentAmount = entry.goalAmounts[i];
+                        // Use SetProgress so loaded progress correctly evaluates completion flags
+                        q.goals[i].SetProgress(entry.goalAmounts[i]);
                     }
                 }
             }

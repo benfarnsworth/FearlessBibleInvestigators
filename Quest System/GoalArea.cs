@@ -1,3 +1,4 @@
+
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
@@ -55,19 +56,25 @@ public class GoalArea : MonoBehaviour
     private void Awake()
     {
         zoneCollider = GetComponent<Collider2D>();
-        if (visualHandler == null) visualHandler = GetComponentInChildren<GoalAreaVisuals>(true);
+
+        if (visualHandler == null)
+            visualHandler = GetComponentInChildren<GoalAreaVisuals>(true);
     }
 
     private void OnEnable()
     {
-        if (!ActiveAreas.Contains(this)) ActiveAreas.Add(this);
+        if (!ActiveAreas.Contains(this))
+            ActiveAreas.Add(this);
+
         QuestManager.OnQuestsUpdated += EvaluateQuestState;
         QuestManager.OnMissionReset += HandleMissionReset;
     }
 
     private void OnDisable()
     {
-        if (ActiveAreas.Contains(this)) ActiveAreas.Remove(this);
+        if (ActiveAreas.Contains(this))
+            ActiveAreas.Remove(this);
+
         QuestManager.OnQuestsUpdated -= EvaluateQuestState;
         QuestManager.OnMissionReset -= HandleMissionReset;
     }
@@ -79,7 +86,8 @@ public class GoalArea : MonoBehaviour
 
     private void Update()
     {
-        if (requiredHoldTime <= 0f || permanentDelivery || hasTriggeredComplete) return;
+        if (requiredHoldTime <= 0f || permanentDelivery || hasTriggeredComplete)
+            return;
 
         if (objectsInPen.Count >= requiredCount)
         {
@@ -90,18 +98,17 @@ public class GoalArea : MonoBehaviour
                 currentHoldTimer = requiredHoldTime;
                 hasTriggeredComplete = true;
 
-                // 1. Update score in QuestManager
+                // Update score in QuestManager.
                 if (QuestManager.Instance != null && !string.IsNullOrEmpty(goalAreaID))
                 {
                     QuestManager.Instance.SetScore(goalAreaID, requiredCount);
                 }
 
-                // 2. Fire completion events FIRST so QuestManager updates fully
+                // Fire completion events before updating the final visual state.
                 onGoalReached?.Invoke();
                 OnHoldTick?.Invoke();
 
-                // 3. Trigger visual state LAST after all event cascades settle
-                if (visualHandler != null) 
+                if (visualHandler != null)
                 {
                     visualHandler.SetState(GoalState.MissionComplete);
                 }
@@ -111,27 +118,28 @@ public class GoalArea : MonoBehaviour
                 OnHoldTick?.Invoke();
             }
         }
-        else
+        else if (currentHoldTimer > 0f)
         {
-            if (currentHoldTimer > 0f)
+            currentHoldTimer = 0f;
+
+            if (QuestManager.Instance != null && !string.IsNullOrEmpty(goalAreaID))
             {
-                currentHoldTimer = 0f;
-                if (QuestManager.Instance != null && !string.IsNullOrEmpty(goalAreaID))
-                {
-                    QuestManager.Instance.SetScore(goalAreaID, objectsInPen.Count);
-                }
-                OnHoldTick?.Invoke();
+                QuestManager.Instance.SetScore(goalAreaID, objectsInPen.Count);
             }
+
+            OnHoldTick?.Invoke();
         }
     }
 
     private void HandleMissionReset(string questName)
     {
-        if (associatedQuests == null || associatedQuests.Count == 0) return;
+        if (associatedQuests == null || associatedQuests.Count == 0)
+            return;
 
         foreach (Quest q in associatedQuests)
         {
-            if (q != null && q.questName.Equals(questName, System.StringComparison.OrdinalIgnoreCase))
+            if (q != null &&
+                q.questName.Equals(questName, System.StringComparison.OrdinalIgnoreCase))
             {
                 ResetGoalArea();
                 break;
@@ -157,63 +165,77 @@ public class GoalArea : MonoBehaviour
 
     private void OnTriggerEnter2D(Collider2D other)
     {
-        if (hasTriggeredComplete) return;
+        if (hasTriggeredComplete)
+            return;
 
         GameObject rootObject = GetValidRootObject(other);
-        if (rootObject == null) return;
 
-        if (permanentlyDelivered.Contains(rootObject) || objectsInPen.Contains(rootObject)) return;
+        if (rootObject == null)
+            return;
 
-        if (MatchesTarget(rootObject))
+        if (permanentlyDelivered.Contains(rootObject) || objectsInPen.Contains(rootObject))
+            return;
+
+        if (!MatchesTarget(rootObject))
+            return;
+
+        objectsInPen.Add(rootObject);
+
+        if (permanentDelivery)
         {
-            objectsInPen.Add(rootObject);
+            permanentlyDelivered.Add(rootObject);
+        }
 
-            if (permanentDelivery)
-            {
-                permanentlyDelivered.Add(rootObject);
-            }
+        int currentCount = permanentDelivery
+            ? permanentlyDelivered.Count
+            : objectsInPen.Count;
 
-            int currentCount = permanentDelivery ? permanentlyDelivered.Count : objectsInPen.Count;
+        if (currentCount >= requiredCount && requiredHoldTime <= 0f)
+        {
+            hasTriggeredComplete = true;
 
-            if (currentCount >= requiredCount && requiredHoldTime <= 0f)
-            {
-                hasTriggeredComplete = true; // Lock completion state immediately
-                if (visualHandler != null) visualHandler.SetState(GoalState.MissionComplete);
-            }
-            else
-            {
-                if (visualHandler != null) visualHandler.SetState(GoalState.Scored);
-            }
+            if (visualHandler != null)
+                visualHandler.SetState(GoalState.MissionComplete);
+        }
+        else
+        {
+            if (visualHandler != null)
+                visualHandler.SetState(GoalState.Scored);
+        }
 
-            OnItemDelivered(currentCount);
+        OnItemDelivered(currentCount);
 
-            if (destroyOnDelivery && permanentDelivery)
-            {
-                objectsInPen.Remove(rootObject);
-                Destroy(rootObject);
-            }
+        if (destroyOnDelivery && permanentDelivery)
+        {
+            objectsInPen.Remove(rootObject);
+            Destroy(rootObject);
         }
     }
 
     private void OnTriggerExit2D(Collider2D other)
     {
-        if (permanentDelivery || hasTriggeredComplete) return;
+        if (permanentDelivery || hasTriggeredComplete)
+            return;
 
         GameObject rootObject = GetValidRootObject(other);
-        if (rootObject == null) return;
+
+        if (rootObject == null)
+            return;
 
         if (objectsInPen.Contains(rootObject))
         {
             objectsInPen.Remove(rootObject);
 
-            if (visualHandler != null) visualHandler.SetState(GoalState.Lost);
+            if (visualHandler != null)
+                visualHandler.SetState(GoalState.Lost);
 
             if (QuestManager.Instance != null)
             {
-                int reportedScore = (objectsInPen.Count >= requiredCount && requiredHoldTime > 0f) 
-                    ? requiredCount - 1 
+                int reportedScore =
+                    (objectsInPen.Count >= requiredCount && requiredHoldTime > 0f)
+                    ? requiredCount - 1
                     : objectsInPen.Count;
-                
+
                 QuestManager.Instance.SetScore(goalAreaID, reportedScore);
             }
         }
@@ -221,40 +243,100 @@ public class GoalArea : MonoBehaviour
 
     private GameObject GetValidRootObject(Collider2D col)
     {
-        if (col == null) return null;
+        if (col == null)
+            return null;
 
+        // Prefer ItemHolder when present.
         ItemHolder holder = col.GetComponentInParent<ItemHolder>();
-        if (holder != null) return holder.gameObject;
 
+        if (holder != null)
+            return holder.gameObject;
+
+        // Fallback: identify collectible objects without an ItemHolder.
+        CollectibleItem collectible = col.GetComponentInParent<CollectibleItem>();
+
+        if (collectible != null)
+            return collectible.gameObject;
+
+        // Preserve support for ordinary physics objects.
         Rigidbody2D rb = col.attachedRigidbody;
-        if (rb != null) return rb.gameObject;
+
+        if (rb != null)
+            return rb.gameObject;
 
         return col.transform.root.gameObject;
     }
 
     private bool MatchesTarget(GameObject obj)
     {
-        if (targetItem == null) return true;
+        // No target assigned means any object is accepted.
+        if (targetItem == null)
+            return true;
 
-        ItemHolder holder = obj.GetComponent<ItemHolder>();
-        if (holder == null) holder = obj.GetComponentInChildren<ItemHolder>();
+        Item incomingItem = GetItemData(obj);
 
-        if (holder == null || holder.itemData == null) return false;
+        if (incomingItem == null)
+            return false;
 
-        Item item = holder.itemData;
-        bool matchesID = !string.IsNullOrEmpty(item.itemID) && string.Equals(targetItem.itemID, item.itemID, System.StringComparison.OrdinalIgnoreCase);
-        bool matchesRef = targetItem == item || targetItem.name.Equals(item.name, System.StringComparison.OrdinalIgnoreCase);
+        bool matchesID =
+            !string.IsNullOrEmpty(incomingItem.itemID) &&
+            string.Equals(
+                targetItem.itemID,
+                incomingItem.itemID,
+                System.StringComparison.OrdinalIgnoreCase
+            );
+
+        bool matchesRef =
+            targetItem == incomingItem ||
+            string.Equals(
+                targetItem.name,
+                incomingItem.name,
+                System.StringComparison.OrdinalIgnoreCase
+            );
 
         return matchesID || matchesRef;
     }
 
+    /// <summary>
+    /// Gets item data from ItemHolder first, then falls back to CollectibleItem.
+    /// Checks parents and children to support common collider hierarchies.
+    /// </summary>
+    private Item GetItemData(GameObject obj)
+    {
+        if (obj == null)
+            return null;
+
+        // First choice: ItemHolder.
+        ItemHolder holder = obj.GetComponentInParent<ItemHolder>();
+
+        if (holder == null)
+            holder = obj.GetComponentInChildren<ItemHolder>();
+
+        if (holder != null && holder.itemData != null)
+            return holder.itemData;
+
+        // Fallback: CollectibleItem.ItemData.
+        CollectibleItem collectible = obj.GetComponentInParent<CollectibleItem>();
+
+        if (collectible == null)
+            collectible = obj.GetComponentInChildren<CollectibleItem>();
+
+        if (collectible != null)
+            return collectible.ItemData;
+
+        return null;
+    }
+
     private void OnItemDelivered(int currentCount)
     {
-        if (QuestManager.Instance == null || string.IsNullOrEmpty(goalAreaID)) return;
+        if (QuestManager.Instance == null || string.IsNullOrEmpty(goalAreaID))
+            return;
 
         if (requiredHoldTime > 0f)
         {
-            int reportedScore = (currentCount >= requiredCount) ? requiredCount - 1 : currentCount;
+            int reportedScore =
+                currentCount >= requiredCount ? requiredCount - 1 : currentCount;
+
             QuestManager.Instance.SetScore(goalAreaID, reportedScore);
             return;
         }
@@ -272,7 +354,9 @@ public class GoalArea : MonoBehaviour
 
     private void EvaluateQuestState()
     {
-        if (isEvaluating) return;
+        if (isEvaluating)
+            return;
+
         isEvaluating = true;
 
         try
@@ -294,12 +378,18 @@ public class GoalArea : MonoBehaviour
 
             foreach (Quest questSO in associatedQuests)
             {
-                if (questSO == null) continue;
+                if (questSO == null)
+                    continue;
+
                 Quest runtimeQuest = QuestManager.Instance.FindQuest(questSO.questName);
+
                 if (runtimeQuest != null)
                 {
-                    if (runtimeQuest.state == QuestState.Active) isAnyActive = true;
-                    if (runtimeQuest.IsCompleted()) isAnyComplete = true;
+                    if (runtimeQuest.state == QuestState.Active)
+                        isAnyActive = true;
+
+                    if (runtimeQuest.IsCompleted())
+                        isAnyComplete = true;
                 }
             }
 
@@ -335,26 +425,28 @@ public class GoalArea : MonoBehaviour
 
     private void SetAreaActive(bool colliderState, GoalState visualState)
     {
-        if (zoneCollider != null) zoneCollider.enabled = colliderState;
+        if (zoneCollider != null)
+            zoneCollider.enabled = colliderState;
 
-        if (visualHandler != null)
+        if (visualHandler == null)
+            return;
+
+        if (visualState != GoalState.Inactive && !visualHandler.gameObject.activeSelf)
         {
-            if (visualState != GoalState.Inactive && !visualHandler.gameObject.activeSelf)
-            {
-                visualHandler.gameObject.SetActive(true);
-            }
+            visualHandler.gameObject.SetActive(true);
+        }
 
-            if (visualState != GoalState.MissionComplete)
+        if (visualState != GoalState.MissionComplete)
+        {
+            if (visualHandler.CurrentState != GoalState.Scored &&
+                visualHandler.CurrentState != GoalState.Lost)
             {
-                if (visualHandler.CurrentState != GoalState.Scored && visualHandler.CurrentState != GoalState.Lost)
-                {
-                    visualHandler.SetState(visualState);
-                }
+                visualHandler.SetState(visualState);
             }
-            else
-            {
-                visualHandler.SetState(GoalState.MissionComplete);
-            }
+        }
+        else
+        {
+            visualHandler.SetState(GoalState.MissionComplete);
         }
     }
 }
