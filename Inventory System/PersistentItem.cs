@@ -6,7 +6,7 @@ public class PersistentItem : MonoBehaviour, ISerializationCallbackReceiver
 {
     [Header("Persistence")]
     [Tooltip("Unique ID for saving. Do not edit unless fixing duplicates.")]
-    [SerializeField] 
+    [SerializeField]
     private string uniqueID;
     public string UniqueID => uniqueID;
 

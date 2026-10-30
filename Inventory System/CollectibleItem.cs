@@ -1,3 +1,4 @@
+
 using UnityEngine;
 
 [RequireComponent(typeof(PersistentItem))]
@@ -7,6 +8,10 @@ public class CollectibleItem : MonoBehaviour, IInteractable
     [SerializeField] private Item itemData;
     [SerializeField] private int quantity = 1;
     [SerializeField] private GameObject pickupTextPrefab;
+
+    // Allows other systems, such as ScoreZone, to identify this item
+    // without allowing them to change its assigned Item asset.
+    public Item ItemData => itemData;
 
     [Header("Pickup SFX")]
     [SerializeField] private AudioClip pickupSound;
